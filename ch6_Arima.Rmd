@@ -1,0 +1,114 @@
+---
+title: "Chapter 6, Statistical Model"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# 1. AR모형 
+
+### AR모형 적합 - 자동
+
+```{r}
+demand= read.table('Daily_Demand_Forecast.txt', sep = ';', head=T)
+
+
+fit = ar(demand$Banking.orders..2., method = 'mle')
+fit
+```
+R의 ar 함수는 자동으로 가장 적절한 차수를 가진 ar모형을 찾아 모델을 적합시킨다. 
+
+이를 arima함수를 이용해 수동으로 할 수도 있음 
+
+
+### AR 모형 적합 - 수동 
+```{r}
+getwd()
+
+pacf(demand$Banking.orders..2.)
+
+est = arima(x=demand$Banking.orders..2., order = c(3,0,0))
+est
+```
+
+PACF를 보면 차수가 3일때 pacf값이 임계값을 넘기므로 AR(3)모형으로 적합시켰다. 
+fixed = c(0,0,NA,NA) argument로 ar1, ar2의 모수를 0으로 제한하고 싶었지만, 이상하게 에러가 떠서 fixed argument는 생략
+
+### AR 모형 평가 
+```{r}
+acf(est$residuals)
+```
+
+ar모형의 잔차들로 ACF 그래프를 그려보았더니 잔차들의 상관관계가 임계값을 넘지
+않은 것으로 보아 위 시계열 데이터를 ar(3)모형에 적합하는 것이 적절하다고 결론 낼 수 있다. 
+
+### 적합한 ar 모형으로 미래 예측
+```{r}
+require(forecast)
+plot(demand$Banking.orders..2., type = 'l')
+# fitted는 모델 적합에 사용된 데이터에 대한 예측값!을 반환한다. 
+# 예측기간을 지정하기 위한 h인수를 추가로 전달할 수 있다. 
+
+lines(fitted(est), col =3, lwd=2)
+
+
+```
+
+
+```{r}
+fitted(est, h=3)
+
+
+```
+
+## MA 모형
+동일데이터로 MA모형에 적합시켜봄 
+
+```{r}
+acf(demand$Banking.orders..2.) 
+
+ma.est = arima(x = demand$Banking.orders..2., order = c(0,0,10),
+               fixed = c(0,0,NA,rep(0,6), NA,NA))
+ma.est
+```
+
+ACF를 그렸을때 시차가 t=3, t=10일때 임계값이 넘는 유의미한 상관관계를 보이고 있으므로 MA모형의 차수를 10으로 하여 모형 적합함 
+
+```{r}
+acf(ma.est$residuals)
+```
+
+fitting된 ma 모형의 잔차가 그 어떤 상관관계를 보여주지 않고 있다. 
+이 데이터는 MA(10) 모형으로 데이터를 적합하여 예측하는 것이 적절하다고 결론내린다. 
+
+
+# ARIMA 모형
+
+ARIMA 모델은 정교한 러신머닝 및 딥러닝 모델이 필요없는 소규모 데이터셋에서 좋은 성능을 보여주고 있다. 
+
+### ARIMA 모형 수동적합 
+
+ARIMA 모형의 파라미터 선택을 위한 발견적 방법들 중 가장 대표적인 '박스 - 젠킨스'방법 :  
+1. 데이터, 시각화, 기반 지식을 사용하여 데이터에 적합한 모델의 종류를 고른다.
+2. 주어진 학습용 뎅디터로 파라미터 추정 
+3. 학습용 데이터를 기반으로 모델 성능을 평가하고, 모데ㅐㄹ의 파라미터를 조정한다. 
+
+수동적합 방법은 
+1. 먼저 모델이 정상시계열인지 아닌지를 파악하고, 추세가 존재한다면 정상시계열로 바꿔질때까지 몇 번 차분이 필요한지 조사한다. 이 과정이 ARIMA(p,d,q)에서 q를 조사해보는 과정 
+2. ACF와 PACF그래프를 보고 ARIMA(p,d,q) 중 p와 q를 결정한다. 
+
+그러나 책에 따르ㅜ면 오늘날에는 수동으로 반복하는 과정보다 모델을 자동으로 선택하는 방법이 더욱 선호된다고 한다. 
+자동화된 모델의 선택은 forcast 패키지의 auto.arima()함수로, AIC와 같은 다양한 기준을 토대로 이루어진다. 
+
+
+
+```{r}
+est = auto.arima(demand$Banking.orders..2., stepwise = FALSE, max.p =3, max.q = 10)
+est
+
+```
